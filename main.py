@@ -164,7 +164,7 @@ async def main():
         tid_list = []
         for i in info_list_all:
             try:
-                data = get_page(i["tid"], proxy)
+                data = await get_page(i["tid"], proxy)
                 data["number"] = i["number"]
                 data["title"] = i["title"]
                 data["date"] = i["date"]
