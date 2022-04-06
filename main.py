@@ -2,6 +2,8 @@ import time
 import httpx
 import bs4
 import re
+import asyncio
+from pyppeteer import launch
 
 from mongo import save_data
 from config import get_config
@@ -11,7 +13,7 @@ log = TNLog()
 
 
 # 获取帖子的id(访问板块)
-def get_plate_info(fid: int, page: int, proxy, date_time):
+async def get_plate_info(fid: int, page: int, proxy, date_time):
     """
     :param fid: 板块id
     :param page: 页码
@@ -33,9 +35,22 @@ def get_plate_info(fid: int, page: int, proxy, date_time):
         "cookie": "UM_distinctid=17de17aee1edd-006cbd7a1c99c7-4303066-1fa400-17de17aee1fd42; CNZZDATA1280511935=1432301821-1640160379-%7C1640853459; cPNj_2132_smile=1D1; cPNj_2132_saltkey=nIFGzacf; cPNj_2132_lastvisit=1648120917; cPNj_2132_atarget=1; cPNj_2132_visitedfid=103D145D39D36D106D151D107D2D38D152; High=fa8362d9f320d9a85b50de1b51093e77; cPNj_2132_lastfp=d021b67b8716f2f2cdf8caba1e7cfc29; cPNj_2132_lastact=1649221864%09forum.php%09forumdisplay; cPNj_2132_st_t=0%7C1649221864%7Cd66d2ced0dca736763e46bd0c8b31a2c; cPNj_2132_forum_lastvisit=D_104_1648712354D_37_1648815821D_152_1648818323D_38_1648818334D_2_1648818354D_107_1648856490D_151_1648856506D_106_1648856664D_36_1648856880D_39_1648856887D_103_1649221864",
     }
 
-    response = httpx.get(url, headers=headers, params=params, proxies=proxy)
+    # response = httpx.get(url, headers=headers, params=params, proxies=proxy)
+
+    url2 = "https://{}/forum.php?mod=forumdisplay&fid={}&page={}".format(
+        get_config("domain_name"), fid, page
+    )
+    if proxy is not None:
+        browser = await launch(args=["--proxy-server={}".format(proxy)])
+    else:
+        browser = await launch()
+    page = await browser.newPage()
+    await page.goto(url2)
+    await page.waitForNavigation()
+    page_text = await page.content()
+
     # 使用bs4解析
-    soup = bs4.BeautifulSoup(response.text, "html.parser")
+    soup = bs4.BeautifulSoup(page_text, "html.parser")
     all = soup.find_all(id=re.compile("^normalthread_"))
     # 存放字典的列表
     info_list = []
@@ -56,11 +71,12 @@ def get_plate_info(fid: int, page: int, proxy, date_time):
         data["tid"] = id
         info_list.append(data)
         tid_list.append(id)
+    print(tid_list)
     return info_list, tid_list
 
 
 # 访问每个帖子的页面
-def get_page(tid, proxy):
+async def get_page(tid, proxy):
     """
     :param tid: 帖子id
     """
@@ -73,8 +89,18 @@ def get_page(tid, proxy):
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.100 Safari/537.36",
         "cookie": "UM_distinctid=17de17aee1edd-006cbd7a1c99c7-4303066-1fa400-17de17aee1fd42; CNZZDATA1280511935=1432301821-1640160379-%7C1640853459; cPNj_2132_smile=1D1; cPNj_2132_saltkey=nIFGzacf; cPNj_2132_lastvisit=1648120917; cPNj_2132_atarget=1; cPNj_2132_visitedfid=103D145D39D36D106D151D107D2D38D152; High=fa8362d9f320d9a85b50de1b51093e77; cPNj_2132_lastfp=d021b67b8716f2f2cdf8caba1e7cfc29; cPNj_2132_lastact=1649221864%09forum.php%09forumdisplay; cPNj_2132_st_t=0%7C1649221864%7Cd66d2ced0dca736763e46bd0c8b31a2c; cPNj_2132_forum_lastvisit=D_104_1648712354D_37_1648815821D_152_1648818323D_38_1648818334D_2_1648818354D_107_1648856490D_151_1648856506D_106_1648856664D_36_1648856880D_39_1648856887D_103_1649221864",
     }
-    response = httpx.get(url, headers=headers, proxies=proxy)
-    soup = bs4.BeautifulSoup(response.text, "html.parser")
+    # response = httpx.get(url, headers=headers, proxies=proxy)
+
+    if proxy is not None:
+        browser = await launch(args=["--proxy-server={}".format(proxy)])
+    else:
+        browser = await launch()
+    page = await browser.newPage()
+    await page.goto(url)
+    await page.waitForNavigation()
+    page_text = await page.content()
+
+    soup = bs4.BeautifulSoup(page_text, "html.parser")
     # 获取帖子的标题
     title = soup.find("h1", class_="ts").find("span").get_text()
     # 发布时间
@@ -101,7 +127,7 @@ def get_page(tid, proxy):
     return data
 
 
-def main():
+async def main():
     # 获取配置
     config = get_config()
     fid_list = config["sehuatang"]["fid"]
@@ -125,7 +151,7 @@ def main():
         tid_list_all = []
         for page in range(1, page_num + 1):
             try:
-                info_list, tid_list = get_plate_info(fid, page, proxy, date_time)
+                info_list, tid_list = await get_plate_info(fid, page, proxy, date_time)
                 info_list_all.extend(info_list)
                 tid_list_all.extend(tid_list)
             except Exception as e:
@@ -144,7 +170,7 @@ def main():
                 data["date"] = i["date"]
                 data["tid"] = i["tid"]
                 post_time = data["post_time"]
-                # 再次匹配发布时间（因为上级页面获取的时间可能不准确）
+                # 再次匹配发布时间（因为上级页面获取的时间可能不准确,会匹配到留言时间）
                 if re.match("^" + date_time, post_time):
                     data_list.append(data)
                     tid_list.append(data["tid"])
@@ -160,4 +186,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.get_event_loop().run_until_complete(main())
+    # asyncio.get_event_loop().run_until_complete(
+    #     tid_list=get_plate_info(103, 1, "127.0.0.1:11223", "2022-04-04")
+    # )
