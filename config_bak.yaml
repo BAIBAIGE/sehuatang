@@ -17,7 +17,7 @@ sehuatang:
     - 160 # VR
 
   # 抓取页数，10代表1-10页，如抓取月份，建议数量写大一些
-  page_num: 5
+  page_num: 752
   # 抓取日期(格式: yyyy-mm-dd), 如果为空, 则抓取当前日期，支持正则匹配，可输入 yyyy-mm 抓取指定月份的所有日期
   date: 2022-03-31
 
@@ -25,12 +25,12 @@ proxy:
   # 代理服务器
   proxy_host: http://127.0.0.1:11223
   # 是否使用代理
-  proxy_enable: true
+  proxy_enable: false
 
 # 推送配置，详情可参考企业微信开发者文档
 sendMessage:
   # 是否发送消息
-  send_wecom_enable: true
+  send_wecom_enable: false
   # 企业ID
   corp_id: wwe1**********fa
   # 应用的凭证密钥
